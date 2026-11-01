@@ -1,0 +1,77 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Alumni Connect</title>
+<style>
+:root{--bg:#eef1f4;--ink:#162a3a;--mut:#5b6b78;--card:#fff;--line:#cfd6dd;--ac:#9b1c31;--tl:#2f6f73}
+@media(prefers-color-scheme:dark){:root{--bg:#10191f;--ink:#e6edf2;--mut:#93a4b1;--card:#18242c;--line:#2c3c47;--ac:#e0647a;--tl:#6cc0c4}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+h1,h2,h3{font-family:Georgia,serif;margin:.2em 0}header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 20px;border-bottom:2px solid var(--ac);background:var(--card)}
+header h1{font-size:22px;margin-right:auto}nav{display:flex;flex-wrap:wrap;gap:4px;padding:10px 20px}
+button,input,select,textarea{font:inherit;color:inherit}button{background:var(--ac);color:#fff;border:0;padding:7px 14px;border-radius:4px;cursor:pointer}
+button.t{background:transparent;color:var(--ink);border:1px solid var(--line)}button.t.on{background:var(--ink);color:var(--bg)}button:focus-visible,input:focus-visible{outline:2px solid var(--tl);outline-offset:2px}
+input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:var(--card);margin:3px 0 8px}
+main{max-width:980px;margin:0 auto;padding:10px 20px 50px}.box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px;margin:10px 0}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.m{color:var(--mut);font-size:13px}.tag{display:inline-block;background:var(--bg);border:1px solid var(--line);padding:0 8px;border-radius:10px;font-size:12px;margin:2px}
+.bar{height:10px;background:var(--tl);border-radius:2px}#msg{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:4px;display:none}
+.big{font:700 30px Georgia,serif;color:var(--ac)}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:5px;border-bottom:1px solid var(--line)}.chat{max-height:260px;overflow:auto}.me{text-align:right;color:var(--tl)}
+</style></head><body>
+<header><h1>Alumni Connect</h1><span id="who" class="m"></span><button class="t" id="out" hidden onclick="logout()">Log out</button></header>
+<nav id="nav"></nav><main id="app"></main><div id="msg" role="status"></div>
+<script>
+let T=localStorage.t,U=null;const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m){const e=$('#msg');e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',3200)}
+async function api(p,m='GET',b){const r=await fetch('/api'+p,{method:m,headers:{'Content-Type':'application/json',Authorization:'Bearer '+T},body:b?JSON.stringify(b):undefined});
+ const j=await r.json().catch(()=>({}));if(!r.ok){toast(j.error||'Something went wrong');throw j}if(j.ok)toast(j.ok);return j}
+const val=id=>$('#'+id)?.value||'';const F=(id,l,t='text')=>`<label>${l}<input id="${id}" type="${t}"></label>`;
+function logout(){localStorage.removeItem('t');T=null;U=null;boot()}
+function authView(){$('#nav').innerHTML='';$('#out').hidden=true;$('#who').textContent='';
+$('#app').innerHTML=`<div class="row"><div class="box"><h2>Log in</h2>${F('le','Email')}${F('lp','Password','password')}<button onclick="login()">Log in</button></div>
+<div class="box"><h2>Join your college network</h2>${F('rn','Full name')}${F('re','College email')}${F('rp','Password','password')}
+<label>I am a<select id="rr"><option value="student">Student</option><option value="alumni">Alumnus / alumna</option></select></label>${F('rb','Branch')}${F('ry','Batch (graduation year)','number')}${F('rc','Company (alumni)')}${F('rt','Job title (alumni)')}${F('rci','City')}${F('rs','Skills (comma separated)')}
+<button onclick="reg()">Create account</button></div>
+<div class="box"><h2>Verify email</h2><p class="m">Enter the 6-digit OTP shown in the server console.</p>${F('ve','Email')}${F('vo','OTP')}<button onclick="ver()">Verify</button></div></div>`}
+async function login(){const j=await api('/login','POST',{email:val('le'),password:val('lp')});T=j.token;localStorage.t=T;boot()}
+const reg=()=>api('/register','POST',{name:val('rn'),email:val('re'),password:val('rp'),role:val('rr'),branch:val('rb'),batch:val('ry'),company:val('rc'),title:val('rt'),city:val('rci'),skills:val('rs')});
+const ver=()=>api('/verify','POST',{email:val('ve'),otp:val('vo')});
+const TABS={Home:home,Mentors:mentors,Referrals:referrals,'Interview library':library,'Career paths':paths,Events:events,Chat:chat,Giving:giving,Resume:resume};
+async function boot(){if(!T)return authView();try{U=await api('/me')}catch{return logout()}
+ $('#who').textContent=`${U.name} (${U.role}) · ${U.points} pts`;$('#out').hidden=false;const names=Object.keys(TABS);if(U.role==='admin')names.push('Admin');
+ $('#nav').innerHTML=names.map(n=>`<button class="t" onclick="go('${n}')">${n}</button>`).join('');go('Home')}
+async function go(n){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.textContent===n));$('#app').innerHTML='';await(n==='Admin'?admin:TABS[n])()}
+const put=h=>$('#app').innerHTML=h;
+async function home(){const l=await api('/leaders'),d=await api('/directory');put(`<div class="box"><h2>Welcome, ${esc(U.name)}</h2><p class="m">You have ${U.points} points. Mentor, refer, share interview notes and attend events to climb the board.</p>
+<h3>Update profile</h3><div class="row"><div>${F('pc','Company')}${F('pt','Job title')}</div><div>${F('pci','City')}${F('ps','Skills')}</div></div><button onclick="saveP()">Save profile</button></div>
+<div class="box"><h3>Top contributors</h3><table>${l.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.name)}</td><td class="m">${x.role}</td><td>${x.points} pts</td></tr>`).join('')||'<tr><td class="m">No points yet. Be the first to help someone.</td></tr>'}</table></div>
+<div class="box"><h3>Alumni directory (${d.length})</h3><table>${d.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.branch)} ${x.batch||''}</td><td>${esc(x.title)} ${x.company?'at '+esc(x.company):''}</td><td class="m">${esc(x.city)}</td></tr>`).join('')}</table></div>`);
+ $('#pc').value=U.company;$('#pt').value=U.title;$('#pci').value=U.city;$('#ps').value=U.skills}
+const saveP=()=>api('/me','PUT',{company:val('pc'),title:val('pt'),city:val('pci'),skills:val('ps'),bio:''});
+async function mentors(){const mine=await api('/mentors/mine');put(`${U.role==='student'?`<div class="box"><h2>Find a mentor</h2>${F('goal','What do you want to learn? (e.g. backend, data science, Google)')}<button onclick="match()">Match me</button><div id="mm"></div></div>`:''}
+<div class="box"><h3>My mentorships</h3>${mine.map(m=>`<p>${esc(m.sname)} → ${esc(m.aname)}: ${esc(m.goal)} <span class="tag">${m.status}</span> ${U.role==='alumni'&&m.status==='Pending'?`<button onclick="mAct(${m.id},'accept')">Accept</button> <button class="t" onclick="mAct(${m.id},'decline')">Decline</button>`:''}</p>`).join('')||'<p class="m">No mentorships yet.</p>'}</div>`)}
+async function match(){const g=val('goal'),r=await api('/mentors/match?goal='+encodeURIComponent(g));$('#mm').innerHTML=r.map(a=>`<div class="box"><b>${esc(a.name)}</b> ${esc(a.title)} ${a.company?'at '+esc(a.company):''} <span class="tag">score ${a.score}</span><br>${a.why.map(w=>`<span class="tag">${esc(w)}</span>`).join('')}<br><button onclick="reqM(${a.id})">Request mentorship</button></div>`).join('')||'<p class="m">No matches. Add skills to your profile or widen your goal.</p>'}
+const reqM=id=>api('/mentors/request','POST',{mentor:id,goal:val('goal')}).then(mentors),mAct=(id,a)=>api(`/mentors/${id}/${a}`,'POST').then(mentors);
+async function referrals(){const j=await api('/jobs'),r=await api('/referrals');const S=['Requested','Referred','Interview','Selected','Declined'];
+ put(`${U.role==='alumni'?`<div class="box"><h2>Post a job with referral slots</h2><div class="row"><div>${F('jt','Role')}${F('jc','Company')}</div><div>${F('js','Skills required')}${F('jn','Referral slots','number')}</div></div><button onclick="postJ()">Post job</button></div>`:''}
+<div class="box"><h3>Open jobs</h3>${j.map(x=>`<p><b>${esc(x.title)}</b> at ${esc(x.company)} <span class="m">by ${esc(x.poster)}</span> <span class="tag">${x.slots-x.used}/${x.slots} slots</span> ${U.role==='student'?`<button onclick="jr(${x.id})">Request referral</button>`:''}</p>`).join('')||'<p class="m">No jobs posted yet.</p>'}</div>
+<div class="box"><h3>Referral tracker</h3>${r.map(x=>`<p>${esc(x.student)} · ${esc(x.title)} at ${esc(x.company)} <span class="tag">${x.status}</span> ${U.role==='alumni'&&x.posterId===U.id?`<select onchange="rs(${x.id},this.value)">${S.map(s=>`<option ${s===x.status?'selected':''}>${s}</option>`).join('')}</select>`:''}</p>`).join('')||'<p class="m">Nothing tracked yet.</p>'}</div>`)}
+const postJ=()=>api('/jobs','POST',{title:val('jt'),company:val('jc'),skills:val('js'),slots:val('jn')}).then(referrals),jr=id=>api(`/jobs/${id}/request`,'POST').then(referrals).catch(()=>0),rs=(id,s)=>api('/referrals/'+id,'POST',{status:s}).then(referrals);
+async function library(){const q=window._q||'';const e=await api('/exp?q='+encodeURIComponent(q));put(`<div class="box"><h2>Interview library</h2><input id="sq" placeholder="Search company or role" value="${esc(q)}"><button onclick="window._q=val('sq');library()">Search</button></div>
+${U.role==='alumni'?`<div class="box"><h3>Share your interview experience</h3><div class="row"><div>${F('ec','Company')}</div><div>${F('er','Role')}</div></div><label>Rounds and questions<textarea id="ero" rows="3"></textarea></label><label>Tips<textarea id="et" rows="2"></textarea></label><button onclick="api('/exp','POST',{company:val('ec'),role:val('er'),rounds:val('ero'),tips:val('et')}).then(library)">Share</button></div>`:''}
+${e.map(x=>`<div class="box"><b>${esc(x.company)}</b> · ${esc(x.role)} <span class="m">by ${esc(x.author)} (${x.batch})</span><p>${esc(x.rounds)}</p><p class="m">Tip: ${esc(x.tips)}</p></div>`).join('')||'<p class="m">No experiences yet.</p>'}`)}
+async function paths(){const p=await api('/paths'),mx=Math.max(1,...p.map(x=>x.n)),by={};p.forEach(x=>(by[x.branch||'Other']??=[]).push(x));
+ put(`<div class="box"><h2>Where graduates end up</h2><p class="m">Companies by branch, from verified alumni profiles.</p></div>`+Object.entries(by).map(([b,l])=>`<div class="box"><h3>${esc(b)}</h3>${l.map(x=>`<div>${esc(x.company)} (${x.n})<div class="bar" style="width:${100*x.n/mx}%"></div></div>`).join('')}</div>`).join('')||'<p class="m">No data yet.</p>')}
+async function events(){const e=await api('/events');put(`<h2>Events and reunions</h2>`+(e.map(x=>`<div class="box"><b>${esc(x.title)}</b> <span class="tag">${esc(x.date)}</span> <span class="tag">Batch: ${esc(x.batch)}</span><p class="m">${x.going} going · ${x.attended} checked in</p>${x.code?`<p>Your check-in code: <b>${x.code}</b></p>`:`<button onclick="api('/events/${x.id}/rsvp','POST').then(events)">RSVP</button>`}</div>`).join('')||'<p class="m">No events scheduled.</p>'))}
+async function chat(){const p=await api('/chat/people');put(`<div class="box"><h2>Chat</h2><p class="m">Chat opens with people whose mentorship request was accepted.</p>${p.map(x=>`<button class="t" onclick="openC(${x.id},'${esc(x.name)}')">${esc(x.name)}</button>`).join('')||'<p class="m">No accepted mentorships yet.</p>'}<div id="cw"></div></div>`)}
+let ct;function openC(id,n){clearInterval(ct);$('#cw').innerHTML=`<h3>${n}</h3><div class="chat box" id="cl"></div><input id="cm" placeholder="Type a message"><button onclick="send(${id})">Send</button>`;const ld=async()=>{const m=await api('/chat/'+id);if(!$('#cl')){clearInterval(ct);return}$('#cl').innerHTML=m.map(x=>`<div class="${x.a===U.id?'me':''}">${esc(x.body)}</div>`).join('')};ld();ct=setInterval(ld,3000)}
+const send=id=>api('/chat/'+id,'POST',{body:val('cm')}).then(()=>{$('#cm').value='';openC(id,'')});
+async function giving(){const g=await api('/gifts');put(`<div class="box"><h2>Give back</h2><p class="big">₹${g.total}</p><p class="m">raised by the community</p>${g.funds.map(f=>`<p>${esc(f.fund)}: ₹${f.total} from ${f.donors} donors</p>`).join('')}</div>
+<div class="box"><h3>Contribute</h3><label>Fund<select id="gf"><option>Scholarship fund</option><option>Lab and equipment</option><option>Emergency student aid</option></select></label>${F('ga','Amount (₹)','number')}<button onclick="api('/gifts','POST',{fund:val('gf'),amount:val('ga')}).then(giving)">Give</button><p class="m">Demo mode: no real payment is taken.</p></div>`)}
+async function resume(){const a=await api('/resume/analyze');put(`<div class="box"><h2>Resume check</h2><label>Paste your resume text<textarea id="rt2" rows="8"></textarea></label><button onclick="api('/resume','PUT',{text:val('rt2')}).then(resume)">Save and analyze</button></div>
+<div class="box"><h3>Feedback</h3>${a.tips.map(t=>`<p>• ${esc(t)}</p>`).join('')||'<p>Looks solid.</p>'}</div><div class="box"><h3>Job match</h3>${a.jobs.map(j=>`<p>${esc(j.title)} at ${esc(j.company)} <span class="tag">${j.match}% match</span> <span class="m">${j.missing.length?'Missing: '+esc(j.missing.join(', ')):''}</span></p>`).join('')||'<p class="m">No jobs to match yet.</p>'}</div>`)}
+async function admin(){const s=await api('/admin/stats'),p=await api('/admin/pending');
+ put(`<div class="row"><div class="box"><div class="big">${s.alumni}</div>alumni</div><div class="box"><div class="big">${s.students}</div>students</div><div class="box"><div class="big">${s.alumni?Math.round(100*s.employed/s.alumni):0}%</div>employed</div><div class="box"><div class="big">${s.mentorships}</div>active mentorships</div></div>
+<div class="box"><h3>Outcomes by branch</h3><table>${s.byBranch.map(b=>`<tr><td>${esc(b.branch||'N/A')}</td><td>${b.total} alumni</td><td>${b.employed} employed</td></tr>`).join('')}</table><button onclick="dl()">Download accreditation report (CSV)</button></div>
+<div class="row"><div class="box"><h3>Top employers</h3>${s.recruiters.map(x=>`<p>${esc(x.company)} <b>${x.n}</b></p>`).join('')}</div><div class="box"><h3>Top cities</h3>${s.cities.map(x=>`<p>${esc(x.city)} <b>${x.n}</b></p>`).join('')}</div><div class="box"><h3>Referral pipeline</h3>${s.referrals.map(x=>`<p>${x.status} <b>${x.n}</b></p>`).join('')||'<p class="m">None yet</p>'}<p>Giving: ₹${s.giving}</p></div></div>
+<div class="box"><h3>Pending approvals</h3>${p.map(x=>`<p>${esc(x.name)} · ${esc(x.email)} · ${x.role} <button onclick="api('/admin/approve/${x.id}','POST').then(admin)">Approve</button></p>`).join('')||'<p class="m">No one waiting.</p>'}</div>
+<div class="box"><h3>Create event</h3><div class="row"><div>${F('et2','Title')}</div><div>${F('ed','Date','date')}</div><div>${F('eb','Batch (or All)')}</div></div><button onclick="api('/events','POST',{title:val('et2'),date:val('ed'),batch:val('eb')})">Create</button></div>
+<div class="box"><h3>Check-in</h3>${F('cc','Attendee code')}<button onclick="api('/checkin','POST',{code:val('cc')})">Check in</button></div>`)}
+async function dl(){const r=await fetch('/api/admin/report.csv',{headers:{Authorization:'Bearer '+T}}),a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='outcomes_report.csv';a.click()}
+boot();
+</script></body></html>
